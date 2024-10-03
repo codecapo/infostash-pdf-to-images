@@ -22,6 +22,7 @@ import {
 } from '../dto/workflow.dto';
 import { ClientSession, Types } from 'mongoose';
 import { UnprocessedTaskProcessing } from '../schema/task-processing-stage.payloads';
+import { request } from 'express';
 
 @Injectable()
 export class WorkflowService {
@@ -194,6 +195,8 @@ export class WorkflowService {
           );
 
         const createTaskProcessing: TaskProcessing = {
+          tmpFileDirLocation: '',
+          tmpImgDirLocation: '',
           completedAt: '',
           failedAt: '',
           taskProcessingId: undefined,
@@ -243,6 +246,8 @@ export class WorkflowService {
       }
 
       const taskProcessing: TaskProcessing = {
+        tmpFileDirLocation: '',
+        tmpImgDirLocation: '',
         infostashId: new Types.ObjectId(
           createTaskProcessingRequest.infostashId,
         ),

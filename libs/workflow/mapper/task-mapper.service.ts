@@ -58,7 +58,6 @@ export class TaskMapper {
     if (schema.infostashId == null)
       throw new Error('infostashId was not provided to task mapper');
 
-
     const dvm: TaskProcessingErrorDataViewModel = {
       taskId: schema._id as Types.ObjectId,
       artefactId: schema.artefactId,
@@ -81,6 +80,8 @@ export class TaskMapper {
     const doc = task._id;
     return task.relatedTasks.map((item) => {
       const task: TaskProcessing = {
+        tmpFileDirLocation: '',
+        tmpImgDirLocation: '',
         taskProcessingId: item._id,
         workflowProcessingLogId: doc,
         infostashId: item.infostashId,
@@ -93,7 +94,7 @@ export class TaskMapper {
         taskQueueName: item.taskQueueName,
         replyQueueName: item.replyQueueName,
         stageName: item.stageName,
-        taskMutationType: item.taskMutationType,
+        taskMutationType: item.taskMutationType
       };
       return task;
     });
@@ -105,6 +106,8 @@ export class TaskMapper {
     const doc = task._id;
     return task.taskProcessingHistory.map((item) => {
       const task: TaskProcessing = {
+        tmpFileDirLocation: '',
+        tmpImgDirLocation: '',
         taskProcessingId: item._id,
         workflowProcessingLogId: doc,
         infostashId: item.infostashId,

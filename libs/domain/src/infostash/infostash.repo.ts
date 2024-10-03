@@ -1,7 +1,7 @@
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
-import { Injectable } from "@nestjs/common";
-import { Infostash, InfostashDocument } from "@app/domain";
+import { Injectable } from '@nestjs/common';
+import { Infostash, InfostashDocument } from '@app/domain';
 
 @Injectable()
 export class InfoRepo {

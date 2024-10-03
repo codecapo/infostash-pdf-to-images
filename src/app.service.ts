@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fsp from 'fs/promises';
-import * as fs from 'fs';
 import * as crypto from 'node:crypto';
 import { fromPath } from 'pdf2pic';
 import { PDFDocument } from 'pdf-lib';
 import * as path from 'path';
 import * as os from 'os';
+import { PdfToImagesTaskCompleted } from '../libs/workflow/pdf-to-images.task.completed';
 
 @Injectable()
 export class AppService {
@@ -19,7 +19,7 @@ export class AppService {
     infostashId: string,
     artefactId: string,
     newfilename: string,
-  ): Promise<boolean> {
+  ): Promise<PdfToImagesTaskCompleted> {
     this.validateInputs(infostashId, artefactId, newfilename);
 
     const pdfFolder = path.join(os.tmpdir(), infostashId);
@@ -32,6 +32,7 @@ export class AppService {
     );
 
     await this.ensureDirectoryExists(imageDir);
+    this.logger.debug(`images will be saved here: ${imageDir}`);
 
     const pdfDoc = await this.loadPdfDocument(pdfFile);
 
@@ -43,14 +44,25 @@ export class AppService {
       this.logger.debug(
         `Image directory exists and is populated: ${imageDir}, skipping image creation`,
       );
-      return true;
+      return {
+        imagesCreated: true,
+        tmpImageDirectoryLocation: imageDir,
+      };
     }
 
-    return this.createImagesFromPdfPages(imageDir, pdfFile, pdfDoc);
+    const imagesCreated = await this.createImagesFromPdfPages(
+      imageDir,
+      pdfFile,
+      pdfDoc,
+    );
+
+    return {
+      imagesCreated: imagesCreated,
+      tmpImageDirectoryLocation: imageDir,
+    };
   }
 
   private validateInputs(...inputs: string[]): void {
-    console.log(inputs)
     if (inputs.some((input) => input == null || input.trim() === '')) {
       throw new Error('All input parameters must be provided and non-empty');
     }
@@ -102,13 +114,16 @@ export class AppService {
     };
 
     const convert = fromPath(pdfFile, options);
+    const totalPages = pdfDoc.getPageCount();
+    let convertedPages = 0;
 
-    for (let pageNum = 1; pageNum <= pdfDoc.getPageCount(); pageNum++) {
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
       try {
         const result = await convert(pageNum, { responseType: 'image' });
         this.logger.debug(
           `Created image for pdf page ${result.page} ${result.name}`,
         );
+        convertedPages++;
       } catch (error) {
         this.logger.error(
           `Error converting page ${pageNum} to image: ${error.message}`,
@@ -117,7 +132,16 @@ export class AppService {
       }
     }
 
-    this.logger.debug('Finished converting all pages to images');
-    return true;
+    const allPagesConverted = convertedPages === totalPages;
+
+    if (allPagesConverted) {
+      this.logger.debug('Successfully converted all pages to images');
+    } else {
+      this.logger.warn(
+        `Converted ${convertedPages} out of ${totalPages} pages`,
+      );
+    }
+
+    return allPagesConverted;
   }
 }

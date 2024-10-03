@@ -41,14 +41,13 @@ export class WorkflowProcessingLogRepo {
   ) {
     try {
       if (clientSession) {
+        this.logger.debug('transactional - adding task processing to workflow');
         const update = {
-          $set: { infostashId: taskProcessing.infostashId },
           $push: { taskProcessingHistory: taskProcessing },
           $inc: { __v: 1 },
         };
         const options = {
-          new: true,
-          runValidators: true,
+          new: false,
           session: clientSession, // This allows the operation to be part of a transaction if a session is provided
         };
 
@@ -67,8 +66,10 @@ export class WorkflowProcessingLogRepo {
 
         return updatedDocument;
       } else {
+        this.logger.debug(
+          'not transactional - adding task processing to workflow',
+        );
         const update = {
-          $set: { infostashId: taskProcessing.infostashId },
           $push: { taskProcessingHistory: taskProcessing },
           $inc: { __v: 1 },
         };

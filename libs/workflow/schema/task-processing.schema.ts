@@ -46,6 +46,12 @@ export class TaskProcessing {
 
   @Prop()
   newArtefactFilename?: string;
+
+  @Prop()
+  tmpFileDirLocation: string;
+
+  @Prop()
+  tmpImgDirLocation: string;
 }
 
 export const TaskProcessingSchema =

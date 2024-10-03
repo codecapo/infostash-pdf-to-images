@@ -7,4 +7,5 @@ export class AppTaskProcessingMessage {
   taskQueueName: string;
   replyToQueueName: string;
   processingStageName: string;
+  type: string;
 }

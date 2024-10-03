@@ -90,8 +90,9 @@ export class TaskProcessingRepo {
     }
   }
 
-  public async updateTaskProcessingWithCompletedAtDateTime(
+  public async updateTaskProcessingWithCompletedAtDateTimeAndWithImageDirLocation(
     taskProcessingId: string,
+    tempImageDirectoryLocation: string,
     clientSession?: ClientSession,
   ): Promise<TaskProcessingDocument> {
     try {
@@ -103,18 +104,27 @@ export class TaskProcessingRepo {
       };
       const oid = new Types.ObjectId(taskProcessingId);
       if (clientSession) {
-        return this.taskProcessingModel
+        return await this.taskProcessingModel
           .findByIdAndUpdate(
             oid,
-            { $set: { completedAt: newTime }, $inc: { __v: 1 } },
+            {
+              $set: {
+                completedAt: newTime,
+                tmpImgDirLocation: tempImageDirectoryLocation,
+              },
+              $inc: { __v: 1 },
+            },
             options,
           )
           .session(clientSession);
       } else {
-        return this.taskProcessingModel.findByIdAndUpdate(
+        return await this.taskProcessingModel.findByIdAndUpdate(
           oid,
           {
-            $set: { completedAt: newTime },
+            $set: {
+              completedAt: newTime,
+              tmpImgDirLocation: tempImageDirectoryLocation,
+            },
             $inc: { __v: 1 },
           },
           options,
@@ -134,14 +144,25 @@ export class TaskProcessingRepo {
   ): Promise<boolean> {
     try {
       const oid = new Types.ObjectId(taskProcessingId);
-      const taskProcessing = await this.taskProcessingModel
-        .findById(oid)
-        .session(clientSession);
-      if (taskProcessing && taskProcessing.startedAt != null) {
-        this.logger.debug(
-          `task ${taskProcessing._id.toHexString()} already started`,
-        );
-        return true;
+
+      if (clientSession) {
+        const taskProcessing = await this.taskProcessingModel
+          .findById(oid)
+          .session(clientSession);
+        if (taskProcessing && taskProcessing.startedAt != null) {
+          this.logger.debug(
+            `task ${taskProcessing._id.toHexString()} already started`,
+          );
+          return true;
+        }
+      } else {
+        const taskProcessing = await this.taskProcessingModel.findById(oid);
+        if (taskProcessing && taskProcessing.startedAt != null) {
+          this.logger.debug(
+            `task ${taskProcessing._id.toHexString()} already started`,
+          );
+          return true;
+        }
       }
     } catch (error) {
       console.error('Error checking task start status:', error);
@@ -211,7 +232,6 @@ export class TaskProcessingRepo {
     clientSession?: ClientSession,
   ): Promise<TaskProcessingDocument> {
     const oid = new Types.ObjectId(taskProcessingId);
-
     try {
       if (clientSession) {
         return this.taskProcessingModel.findById(oid).session(clientSession);

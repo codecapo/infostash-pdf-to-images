@@ -7,6 +7,8 @@ import { TaskProcessingRepo } from '../libs/workflow/repo/task-processing.repo';
 import { AppTaskProcessingMessage } from './app.task-processing.message';
 import { WorkflowProcessingLogRepo } from '../libs/workflow/repo/workflow-processing-log.repo';
 import { ClientSession } from 'mongoose';
+import { PdfToImagesTaskCompleted } from '../libs/workflow/pdf-to-images.task.completed';
+import { InfostashArtefactRepo } from '../libs/domain/infostash-artefact.repo';
 
 @Injectable()
 export class AppWorker implements OnModuleInit {
@@ -19,6 +21,7 @@ export class AppWorker implements OnModuleInit {
     private readonly rabbitMqService: RabbitMqService,
     private readonly mongodbService: MongodbService,
     private readonly taskProcessingRepo: TaskProcessingRepo,
+    private readonly infostashArtefactRepo: InfostashArtefactRepo,
     private readonly workflowProcessingLogRepo: WorkflowProcessingLogRepo,
   ) {}
 
@@ -55,24 +58,26 @@ export class AppWorker implements OnModuleInit {
       clientSession = await mongoConnectionInstance.startSession();
       clientSession.startTransaction();
 
-      if (
-        await this.isTaskAlreadyStarted(task.taskProcessingId, clientSession)
-      ) {
+      if (await this.isTaskAlreadyStarted(task.taskProcessingId)) {
         this.logger.debug(`Skip processing task ${task.taskProcessingId}`);
         await clientSession.commitTransaction();
         ack();
         return;
       }
 
+      task.type = 'ACK';
       await this.sendReplyMessage(task);
-      await this.startTaskProcessing(task.taskProcessingId, clientSession);
+      await this.startTaskProcessing(task.taskProcessingId);
 
-      const taskProcessed = await this.processTask(task, clientSession);
+      const taskProcessed = await this.processTask(task);
 
       await this.delay(1000);
 
       if (taskProcessed) {
-        await this.completeTaskProcessing(task, clientSession);
+        await this.completeTaskProcessing(
+          task,
+          taskProcessed.tmpImageDirectoryLocation,
+        );
       }
 
       await clientSession.commitTransaction();
@@ -96,7 +101,7 @@ export class AppWorker implements OnModuleInit {
 
   private async isTaskAlreadyStarted(
     taskProcessingId: string,
-    clientSession: ClientSession,
+    clientSession?: ClientSession,
   ): Promise<boolean> {
     return this.taskProcessingRepo.checkIfTaskHasStartedAtDate(
       taskProcessingId,
@@ -113,7 +118,7 @@ export class AppWorker implements OnModuleInit {
 
   private async startTaskProcessing(
     taskProcessingId: string,
-    clientSession: ClientSession,
+    clientSession?: ClientSession,
   ) {
     await this.taskProcessingRepo.updateTaskProcessingWithStartedAtDateTime(
       taskProcessingId,
@@ -124,13 +129,11 @@ export class AppWorker implements OnModuleInit {
 
   private async processTask(
     task: AppTaskProcessingMessage,
-    clientSession: ClientSession,
-  ) {
+  ): Promise<PdfToImagesTaskCompleted> {
     this.logger.debug(`Processing task: ${JSON.stringify(task)}`);
 
     const taskProcessing = await this.taskProcessingRepo.getTaskProcessingById(
       task.taskProcessingId,
-      clientSession,
     );
 
     return this.appService.splitPdfIntoImages(
@@ -142,22 +145,36 @@ export class AppWorker implements OnModuleInit {
 
   private async completeTaskProcessing(
     task: AppTaskProcessingMessage,
-    clientSession: ClientSession,
+    tmpImageDirectoryLocation: string,
+    clientSession?: ClientSession,
   ) {
     const completedTask =
-      await this.taskProcessingRepo.updateTaskProcessingWithCompletedAtDateTime(
+      await this.taskProcessingRepo.updateTaskProcessingWithCompletedAtDateTimeAndWithImageDirLocation(
         task.taskProcessingId,
+        tmpImageDirectoryLocation,
         clientSession,
       );
 
-    this.logger.debug(`Task Completed: ${completedTask.completedAt}`);
+    await this.logger.debug(`Task Completed: ${completedTask.completedAt}`);
 
     await this.workflowProcessingLogRepo.addTaskProcessingToWorkflowProcessingLogHistory(
       completedTask,
       clientSession,
     );
 
-    await this.sendReplyMessage(task);
+    // update infostash
+
+    await this.infostashArtefactRepo.updateArtefactWithTempImgDirectory(
+      task.infostashId,
+      task.artefactId,
+      tmpImageDirectoryLocation,
+    );
+
+    task.type = 'TASK';
+    await this.rabbitMqService.sendMessage(
+      task.replyToQueueName,
+      JSON.stringify(task),
+    );
   }
 
   private delay(ms: number): Promise<void> {
