@@ -34,12 +34,6 @@ export class AppService {
     await this.ensureDirectoryExists(imageDir);
     this.logger.debug(`images will be saved here: ${imageDir}`);
 
-    const pdfDoc = await this.loadPdfDocument(pdfFile);
-
-    this.logger.debug(
-      `Loaded pdf ${pdfDoc.getTitle()} with ${pdfDoc.getPageCount()} pages`,
-    );
-
     if (await this.isDirectoryPopulated(imageDir)) {
       this.logger.debug(
         `Image directory exists and is populated: ${imageDir}, skipping image creation`,
@@ -49,6 +43,11 @@ export class AppService {
         tmpImageDirectoryLocation: imageDir,
       };
     }
+
+    const pdfDoc = await this.loadPdfDocument(pdfFile);
+    this.logger.debug(
+      `Loaded pdf ${pdfDoc.getTitle()} with ${pdfDoc.getPageCount()} pages`,
+    );
 
     const imagesCreated = await this.createImagesFromPdfPages(
       imageDir,
@@ -128,20 +127,8 @@ export class AppService {
         this.logger.error(
           `Error converting page ${pageNum} to image: ${error.message}`,
         );
-        // Consider whether to throw here or continue with next page
       }
     }
-
-    const allPagesConverted = convertedPages === totalPages;
-
-    if (allPagesConverted) {
-      this.logger.debug('Successfully converted all pages to images');
-    } else {
-      this.logger.warn(
-        `Converted ${convertedPages} out of ${totalPages} pages`,
-      );
-    }
-
-    return allPagesConverted;
+    return convertedPages === totalPages;
   }
 }
