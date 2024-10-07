@@ -136,6 +136,10 @@ export class AppWorker implements OnModuleInit {
       task.taskProcessingId,
     );
 
+    if (taskProcessing.newArtefactFilename == null) {
+      throw new Error('Cannot split pdf into images without a file name');
+    }
+
     return this.appService.splitPdfIntoImages(
       task.infostashId,
       task.artefactId,
